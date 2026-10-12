@@ -12,29 +12,55 @@ on:
 permissions:
   contents: write
 
+env:
+  UA: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
+  CDN: 'https://irp.cdn-website.com/dffe82bb/dms3rep/multi'
+
 jobs:
   fetch:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - name: Show the photo addresses the old website uses
+        continue-on-error: true
+        run: |
+          for page in https://www.matchkleurenstijl.nl/ https://matchkleurenstijl.nl/; do
+            echo "== $page"
+            curl -sSL -A "$UA" "$page" | grep -oE 'https://irp\.cdn-website\.com/[^"'"'"' )]+' | grep -iE 'yvonne|supermooi' | sort -u || true
+          done
+
       - name: Download photos
         run: |
-          set -euo pipefail
+          set -uo pipefail
           mkdir -p assets/img
+          # get <file> <url>...: first address that returns an image wins.
           get() {
-            curl -fsSL --retry 3 -o "assets/img/$1" "$2"
-            case "$(file --mime-type -b "assets/img/$1")" in
-              image/*) ;;
-              *) echo "::error::$1 is not an image"; exit 1 ;;
-            esac
+            local out="assets/img/$1"; shift
+            for url in "$@"; do
+              code=$(curl -sSL -A "$UA" -e 'https://www.matchkleurenstijl.nl/' -o "$out" -w '%{http_code}' "$url" || true)
+              mime=$(file --mime-type -b "$out" 2>/dev/null || true)
+              echo "$code $mime $url"
+              case "$code $mime" in 200\ image/*) return 0 ;; esac
+            done
+            rm -f "$out"; echo "::error::no working address for $out"; return 1
           }
-          get yvonne.jpg 'https://irp.cdn-website.com/dffe82bb/dms3rep/multi/opt/Yvonne+web+juli+2026-1920w.jpg'
-          get witte-blouses.png 'https://irp.cdn-website.com/dffe82bb/dms3rep/multi/opt/Supermooi-wit-juli-2026-1280w.png'
+          ok=0
+          get yvonne.jpg \
+            "$CDN/opt/Yvonne+web+juli+2026-1920w.jpg" \
+            "$CDN/opt/Yvonne%20web%20juli%202026-1920w.jpg" \
+            "$CDN/Yvonne+web+juli+2026.jpg" \
+            "$CDN/Yvonne%20web%20juli%202026.jpg" \
+            $(curl -sSL -A "$UA" https://www.matchkleurenstijl.nl/ | grep -oE 'https://irp\.cdn-website\.com/[^"'"'"' )]+' | grep -i yvonne | sort -u) || ok=1
+          get witte-blouses.png \
+            "$CDN/opt/Supermooi-wit-juli-2026-1280w.png" \
+            "$CDN/Supermooi-wit-juli-2026.png" \
+            $(curl -sSL -A "$UA" https://www.matchkleurenstijl.nl/ | grep -oE 'https://irp\.cdn-website\.com/[^"'"'"' )]+' | grep -i supermooi | sort -u) || ok=1
           for w in 800 1200 1600; do
-            get "kledingrek-$w.jpg" "https://images.unsplash.com/photo-1604882767135-b41fac508fff?fm=jpg&fit=crop&w=$w&q=75"
+            get "kledingrek-$w.jpg" "https://images.unsplash.com/photo-1604882767135-b41fac508fff?fm=jpg&fit=crop&w=$w&q=75" || ok=1
           done
-          file assets/img/*
+          file assets/img/* || true
+          exit $ok
 
       - name: Commit
         run: |
