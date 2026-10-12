@@ -1,0 +1,45 @@
+name: Fetch photos into the site
+
+# One-off. The page used to load its photos from the old website builder and from
+# Unsplash; this copies them into assets/img/ so the site no longer depends on either.
+# Delete this file once the photos are committed.
+
+on:
+  push:
+    paths: ['.github/workflows/fetch-photos.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download photos
+        run: |
+          set -euo pipefail
+          mkdir -p assets/img
+          get() {
+            curl -fsSL --retry 3 -o "assets/img/$1" "$2"
+            case "$(file --mime-type -b "assets/img/$1")" in
+              image/*) ;;
+              *) echo "::error::$1 is not an image"; exit 1 ;;
+            esac
+          }
+          get yvonne.jpg 'https://irp.cdn-website.com/dffe82bb/dms3rep/multi/opt/Yvonne+web+juli+2026-1920w.jpg'
+          get witte-blouses.png 'https://irp.cdn-website.com/dffe82bb/dms3rep/multi/opt/Supermooi-wit-juli-2026-1280w.png'
+          for w in 800 1200 1600; do
+            get "kledingrek-$w.jpg" "https://images.unsplash.com/photo-1604882767135-b41fac508fff?fm=jpg&fit=crop&w=$w&q=75"
+          done
+          file assets/img/*
+
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/img
+          git diff --cached --quiet || git commit -m 'Store site photos in assets/img'
+          git push origin "HEAD:${GITHUB_REF_NAME}"

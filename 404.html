@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Pagina niet gevonden | Match Kleur &amp; Stijl</title>
+  <!-- The whole site is one page. Links to pages of the old website (Google results,
+       bookmarks) land here and are sent to the matching section of the homepage. -->
+  <script>
+    (function () {
+      var path = location.pathname;
+      // Preview on github.io lives under /<repo>/; on the real domain the site is at /.
+      var base = '/';
+      if (/\.github\.io$/.test(location.hostname)) {
+        base = '/' + path.split('/')[1] + '/';
+      }
+      var rest = path.slice(base.length).toLowerCase();
+
+      var sections = [
+        [/contact/, '#contact'],
+        [/kleur/, '#kleuranalyse'],
+        [/over|about/, '#over'],
+        [/werkwijze/, '#werkwijze'],
+        [/vraag|vragen|faq/, '#vragen'],
+        [/aanbod|tarie|prijs|prijzen|dienst|styling|capsule|garderobe|shopping/, '#aanbod']
+      ];
+      var hash = '';
+      for (var i = 0; i < sections.length; i++) {
+        if (sections[i][0].test(rest)) { hash = sections[i][1]; break; }
+      }
+      location.replace(base + hash);
+    })();
+  </script>
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px;
+           background: #F6F2E9; color: #4D5C41; font: 18px/1.5 Georgia, serif; text-align: center; }
+    a { color: inherit; }
+  </style>
+</head>
+<body>
+  <p>Deze pagina bestaat niet meer.<br><a href="/">Naar de homepage van Match Kleur &amp; Stijl</a></p>
+</body>
+</html>
