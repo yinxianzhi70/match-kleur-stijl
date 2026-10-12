@@ -25,12 +25,21 @@ jobs:
       - name: Show the photo addresses the old website uses
         continue-on-error: true
         run: |
-          for page in https://www.matchkleurenstijl.nl/ https://matchkleurenstijl.nl/; do
+          for page in https://www.matchkleurenstijl.nl/ https://matchkleurenstijl.nl/ http://www.matchkleurenstijl.nl/; do
             echo "== $page"
-            curl -sSL -A "$UA" "$page" | grep -oE 'https://irp\.cdn-website\.com/[^"'"'"' )]+' | grep -iE 'yvonne|supermooi' | sort -u || true
+            curl -sSL -A "$UA" -o old.html -w 'status %{http_code}, ended at %{url_effective}, %{size_download} bytes\n' "$page" || true
+            sed 's#\\/#/#g' old.html > old-clean.html || true
+            echo "-- photos:"
+            grep -oE 'irp\.cdn-website\.com/[^"'"'"' )<>]+' old-clean.html | sort -u | head -80 || true
+            echo "-- og:image:"
+            grep -oiE '<meta[^>]+og:image[^>]*>' old-clean.html || true
+            echo "-- pages:"
+            grep -oE 'href="/[^"#]*"' old-clean.html | sort -u | head -40 || true
           done
+          rm -f old.html old-clean.html
 
       - name: Download photos
+        id: download
         run: |
           set -uo pipefail
           mkdir -p assets/img
@@ -60,7 +69,7 @@ jobs:
             get "kledingrek-$w.jpg" "https://images.unsplash.com/photo-1604882767135-b41fac508fff?fm=jpg&fit=crop&w=$w&q=75" || ok=1
           done
           file assets/img/* || true
-          exit $ok
+          echo "missing=$ok" >> "$GITHUB_OUTPUT"
 
       - name: Commit
         run: |
@@ -69,3 +78,9 @@ jobs:
           git add assets/img
           git diff --cached --quiet || git commit -m 'Store site photos in assets/img'
           git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Fail if a photo is still missing
+        if: steps.download.outputs.missing != '0'
+        run: |
+          echo "::error::at least one photo could not be downloaded (see the Download photos step)"
+          exit 1
