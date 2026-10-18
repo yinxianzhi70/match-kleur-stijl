@@ -1,0 +1,46 @@
+name: Look up matchkleurenstijl.nl
+
+# One-off, read-only. Prints where the domain is registered, where its DNS points,
+# and which website it currently serves. Delete this file once it has run.
+
+on:
+  push:
+    paths: ['.github/workflows/domain-lookup.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  lookup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Registry record (SIDN)
+        continue-on-error: true
+        run: |
+          curl -sS https://rdap.sidn.nl/domain/matchkleurenstijl.nl | jq '{
+            registrar: [.entities[]? | select(.roles | index("registrar")) | .vcardArray[1][]? | select(.[0] == "fn") | .[3]],
+            nameservers: [.nameservers[]?.ldhName],
+            status: .status,
+            events: [.events[]? | {(.eventAction): .eventDate}]
+          }'
+
+      - name: Registry record (whois)
+        continue-on-error: true
+        run: |
+          sudo apt-get install -y -qq whois > /dev/null
+          whois -h whois.domain-registry.nl matchkleurenstijl.nl | sed -n '/^Domain name/,/^Record maintained/p'
+
+      - name: Where the address points
+        continue-on-error: true
+        run: |
+          for q in "matchkleurenstijl.nl NS" "matchkleurenstijl.nl A" "www.matchkleurenstijl.nl CNAME" "www.matchkleurenstijl.nl A" "matchkleurenstijl.nl MX"; do
+            echo "$q -> $(dig +short $q | tr '\n' ' ')"
+          done
+
+      - name: Which website it shows
+        continue-on-error: true
+        run: |
+          curl -sSL -o page.html -w 'status %{http_code}, ended at %{url_effective}\n' https://www.matchkleurenstijl.nl/
+          grep -o '<title>[^<]*</title>' page.html || true
+          if grep -q 'irp.cdn-website.com' page.html; then echo "-> OLD website (website builder)"; fi
+          if grep -q 'assets/css/style.css' page.html; then echo "-> NEW website"; fi
